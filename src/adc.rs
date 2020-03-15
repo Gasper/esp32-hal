@@ -30,6 +30,15 @@ pub mod config {
         pub resolution: Resolution,
         pub attenuation: Attenuation,
     }
+
+    impl Default for Config {
+        fn default() -> Config {
+            Config {
+                resolution: Resolution::Resolution12Bit,
+                attenuation: Attenuation::Attenuation0Db,
+            }
+        }
+    }
 }
 
 impl Channel<ADC1> for Gpio36<Input<Floating>> {
@@ -39,15 +48,15 @@ impl Channel<ADC1> for Gpio36<Input<Floating>> {
 }
 
 pub struct ADC<ADC, PIN> {
-    adc: ADC,
-    pin: PIN,
+    adc: PhantomData<ADC>,
+    pin: PhantomData<PIN>,
 }
 
 impl<PIN> ADC<ADC1, PIN>
     where PIN: Channel<ADC1, ID=u8> {
 
-    pub fn adc1(adc: ADC1, pin: PIN, config: config::Config) -> Result<Self, ()> {
-        let adc = ADC { adc: adc, pin: pin }
+    pub fn adc1(config: config::Config) -> Result<Self, ()> {
+        let adc = ADC { adc: PhantomData, pin: PhantomData }
             .set_resolution(config.resolution)
             .set_attenuation(config.attenuation);
 
@@ -98,12 +107,13 @@ where
             unsafe { w.sar1_en_pad().bits(1 << PIN::channel() as u8) }
         });
 
-        // Start conversion
+        // Wait for ongoing conversion to complete
         let adc_status = sensors.sar_slave_addr1.read().meas_status().bits() as u8;
         if adc_status != 0 {
             return Err(nb::Error::WouldBlock);
         }
 
+        // Start conversion
         sensors.sar_meas_start1.modify(|_,w| w.meas1_start_sar().clear_bit());
         sensors.sar_meas_start1.modify(|_,w| w.meas1_start_sar().set_bit());
 
