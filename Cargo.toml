@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 esp32 = { version = "0.2.2" }
+nb = { version = "0.1.2" }
 
 [dependencies.embedded-hal]
 features = ["unproven"]
