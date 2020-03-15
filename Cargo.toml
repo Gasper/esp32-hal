@@ -10,6 +10,20 @@ edition = "2018"
 esp32 = { version = "0.2.2" }
 nb = { version = "0.1.2" }
 
+[profile.dev]
+incremental = false
+debug = true
+codegen-units = 1
+
+[profile.release]
+lto = true
+incremental = false
+debug = true
+codegen-units = 1
+
 [dependencies.embedded-hal]
 features = ["unproven"]
 version = "0.2.3"
+
+[[example]]
+name = "adc"
