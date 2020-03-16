@@ -47,6 +47,12 @@ impl Channel<ADC1> for Gpio36<Input<Floating>> {
     fn channel() -> u8 { 0_u8 }
 }
 
+impl Channel<ADC1> for Gpio34<Input<Floating>> {
+    type ID = u8;
+
+    fn channel() -> u8 { 0_u8 }
+}
+
 pub struct ADC<ADC, PIN> {
     adc: PhantomData<ADC>,
     pin: PhantomData<PIN>,
