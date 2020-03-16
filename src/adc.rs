@@ -1,7 +1,7 @@
 use embedded_hal::adc::{Channel, OneShot};
 use core::marker::PhantomData;
 
-use crate::pac::{APB_CTRL, SENS};
+use crate::pac::{APB_CTRL, SENS, RTCIO};
 use crate::gpio::*;
 
 
@@ -107,6 +107,34 @@ where
 
     fn read(&mut self, _pin: &mut PIN) -> nb::Result<WORD, Self::Error> {
         let sensors = unsafe { &*SENS::ptr() };
+        let rtcio = unsafe { &*RTCIO::ptr() };
+
+        // Set controller to RTC
+        sensors.sar_read_ctrl.modify(|_,w| w.sar1_dig_force().clear_bit());
+        sensors.sar_meas_start1.modify(|_,w| w.meas1_start_force().set_bit());
+        sensors.sar_meas_start1.modify(|_,w| w.sar1_en_pad_force().set_bit());
+        sensors.sar_touch_ctrl1.modify(|_,w| w.xpd_hall_force().set_bit());
+        sensors.sar_touch_ctrl1.modify(|_,w| w.hall_phase_force().set_bit());
+
+        // Set power to SW power on
+        sensors.sar_meas_wait2.modify(|_,w| {
+            unsafe { w.force_xpd_sar().bits(0b11) }
+        });
+
+        // Hall disable
+        rtcio.rtc_io_hall_sens.modify(|_,w| w.rtc_io_xpd_hall().clear_bit());
+
+        // AMP disable
+        // Close ADC AMP module if don't use it for power save.
+        sensors.sar_meas_wait2.modify(|_,w| {
+            unsafe { w.force_xpd_amp().bits(0b10) }
+        });
+        sensors.sar_meas_ctrl.modify(|_,w| unsafe { w.amp_rst_fb_fsm().bits(0) });
+        sensors.sar_meas_ctrl.modify(|_,w| unsafe { w.amp_short_ref_fsm().bits(0) });
+        sensors.sar_meas_ctrl.modify(|_,w| unsafe { w.amp_short_ref_gnd_fsm().bits(0) });
+        sensors.sar_meas_wait1.modify(|_,w| unsafe { w.sar_amp_wait1().bits(1) });
+        sensors.sar_meas_wait1.modify(|_,w| unsafe { w.sar_amp_wait2().bits(1) });
+        sensors.sar_meas_wait2.modify(|_,w| unsafe { w.sar_amp_wait3().bits(1) });
 
         // Enable channel
         sensors.sar_meas_start1.modify(|_, w| {
@@ -114,19 +142,24 @@ where
         });
 
         // Wait for ongoing conversion to complete
-        let adc_status = sensors.sar_slave_addr1.read().meas_status().bits() as u8;
+        /*let adc_status = sensors.sar_slave_addr1.read().meas_status().bits() as u8;
         if adc_status != 0 {
             return Err(nb::Error::WouldBlock);
-        }
+        }*/
 
         // Start conversion
         sensors.sar_meas_start1.modify(|_,w| w.meas1_start_sar().clear_bit());
         sensors.sar_meas_start1.modify(|_,w| w.meas1_start_sar().set_bit());
 
         // Wait for ADC to finish conversion
-        let conversion_finished = sensors.sar_meas_start1.read().meas1_done_sar().bit_is_set();
+        /*let conversion_finished = sensors.sar_meas_start1.read().meas1_done_sar().bit_is_set();
         if !conversion_finished {
             return Err(nb::Error::WouldBlock);
+        }*/
+        
+        let mut conversion_finished = sensors.sar_meas_start1.read().meas1_done_sar().bit_is_set();
+        while !conversion_finished {
+            conversion_finished = sensors.sar_meas_start1.read().meas1_done_sar().bit_is_set();
         }
 
         // Get converted value

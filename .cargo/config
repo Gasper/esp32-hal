@@ -16,7 +16,7 @@ rustflags = [
 # uncommenting the three lines below
   "-C", "linker=xtensa-esp32-elf-gcc",
   "-C", "link-arg=-nostartfiles",
-  "-C", "link-arg=-Wl,-Tmemory.x",
+  "-C", "link-arg=-Wl,-Tlink.x",
   "-C", "debuginfo=0", # not 2
   
 # see: https://github.com/MabezDev/xtensa-rust-quickstart/issues/1#issuecomment-481119695

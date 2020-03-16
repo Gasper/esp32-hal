@@ -48,3 +48,6 @@ name = "rtccntl"
 
 [[example]]
 name = "adc"
+
+[[example]]
+name = "adc_serial"
