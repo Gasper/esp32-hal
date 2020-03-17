@@ -5,6 +5,8 @@
 #[macro_use(block)]
 extern crate nb;
 
+use std::ops::Generator;
+
 use xtensa_lx6_rt as _;
 
 use embedded_hal::adc::OneShot;
@@ -59,14 +61,8 @@ fn main() -> ! {
     delay(BLINK_HZ);
 
     loop {
-        let adc_result = adc1.read(&mut pin36);
-        if adc_result.is_ok() {
-            let raw_value: u16 = adc_result.unwrap();
-            writeln!(tx, "ADC1 raw value: {:?}", raw_value).unwrap();
-        }
-        else {
-            writeln!(tx, "ADC1 read failed.").unwrap();
-        }
+        let raw_value: u16 = block!(adc1.read(&mut pin36)).unwrap();
+        writeln!(tx, "ADC1 raw value: {:?}", raw_value).unwrap();
 
         delay(BLINK_HZ);
     }
