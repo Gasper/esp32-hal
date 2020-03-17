@@ -5,8 +5,6 @@
 #[macro_use(block)]
 extern crate nb;
 
-use std::ops::Generator;
-
 use xtensa_lx6_rt as _;
 
 use embedded_hal::adc::OneShot;
@@ -46,6 +44,7 @@ fn main() -> ! {
 
     let gpios = dp.GPIO.split();
     let mut pin36 = gpios.gpio36.into_floating_input();
+    let mut pin39 = gpios.gpio39.into_floating_input();
 
     let mut clkcntrl = esp32_hal::clock_control::ClockControl::new(dp.RTCCNTL, dp.APB_CTRL);
     clkcntrl.watchdog().disable();
@@ -53,20 +52,37 @@ fn main() -> ! {
     let serial = Serial::uart0(dp.UART0, (NoTx, NoRx), esp32_hal::serial::config::Config::default(), &mut clkcntrl).unwrap();
     let baudrate = serial.get_baudrate();
 
-    let mut adc1: ADC<ADC1, Gpio36<Input<Floating>>> 
-        = ADC::adc1(esp32_hal::adc::config::Config::default()).unwrap();
+    let mut adc_config = esp32_hal::adc::config::Config::default();
+    adc_config.enable_pin(0, esp32_hal::adc::config::Attenuation::Attenuation0bB);
+    adc_config.enable_pin(4, esp32_hal::adc::config::Attenuation::Attenuation2p5dB);
+
+    let mut adc1: ADC<ADC1> = ADC::adc1(adc_config).unwrap();
 
     let (mut tx, mut rx) = serial.split();
     writeln!(tx, "baudrate {:?}", baudrate).unwrap();
     delay(BLINK_HZ);
 
     loop {
-        let raw_value: u16 = block!(adc1.read(&mut pin36)).unwrap();
-        writeln!(tx, "ADC1 raw value: {:?}", raw_value).unwrap();
+        
+        match adc1.read(&mut pin36) {
+            Ok(raw_value) => {
+                let pin36_value: u16 = raw_value;
+                writeln!(tx, "ADC1 pin 36 raw value: {:?}", pin36_value).unwrap();
+            }
+            Err(nb::Error::WouldBlock) => { /* waiting for result */ },
+            Err(_) => writeln!(tx, "Error reading pin 36!").unwrap(),
+        }
 
-        delay(BLINK_HZ);
+        match adc1.read(&mut pin39) {
+            Ok(raw_value) => {
+                let pin39_value: u16 = raw_value;
+                writeln!(tx, "ADC1 pin 39 raw value: {:?}", pin39_value).unwrap();
+            }
+            Err(nb::Error::WouldBlock) => { /* waiting for result */ },
+            Err(_) => writeln!(tx, "Error reading pin 39!").unwrap(),
+        }
     }
-}
+}   
 
 fn disable_timg_wdts(timg0: &mut esp32::TIMG0, timg1: &mut esp32::TIMG1) {
     timg0

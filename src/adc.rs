@@ -3,7 +3,7 @@ extern crate spin;
 use embedded_hal::adc::{Channel, OneShot};
 use core::marker::PhantomData;
 
-use crate::pac::{APB_CTRL, SENS, RTCIO};
+use crate::pac::{SENS, RTCIO};
 use crate::gpio::*;
 
 
@@ -11,6 +11,8 @@ pub struct ADC1;
 pub struct ADC2;
 
 pub mod config {
+    use embedded_hal::adc::Channel;
+    use crate::adc::ADC1;
     
     #[derive(PartialEq, Eq, Clone, Copy)]
     pub enum Resolution {
@@ -20,27 +22,38 @@ pub mod config {
         Resolution12Bit = 3,
     }
 
-    #[derive(PartialEq, Eq)]
+    #[derive(PartialEq, Eq, Clone, Copy)]
     pub enum Attenuation {
-        Attenuation0Db = 0b00,
-        Attenuation2p5Db = 0b01,
-        Attenuation6Db = 0b10,
-        Attenuation11Db = 0b11,
+        Attenuation0bB = 0b00,
+        Attenuation2p5dB = 0b01,
+        Attenuation6dB = 0b10,
+        Attenuation11dB = 0b11,
     }
 
     pub struct Config {
         pub resolution: Resolution,
-        pub attenuation: Attenuation,
+        pub attenuations: [Option<Attenuation>; 10],
+    }
+
+    impl Config {
+        pub fn enable_pin(&mut self, pin: u8, attenuation: Attenuation) {
+            self.attenuations[pin as usize] = Some(attenuation);
+        }
     }
 
     impl Default for Config {
         fn default() -> Config {
             Config {
                 resolution: Resolution::Resolution12Bit,
-                attenuation: Attenuation::Attenuation0Db,
+                attenuations: [None; 10],
             }
         }
     }
+}
+
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+pub enum AdcError {
+    UnconfiguredChannel,
 }
 
 impl Channel<ADC1> for Gpio36<Input<Floating>> {
@@ -49,29 +62,26 @@ impl Channel<ADC1> for Gpio36<Input<Floating>> {
     fn channel() -> u8 { 0_u8 }
 }
 
-impl Channel<ADC1> for Gpio34<Input<Floating>> {
+impl Channel<ADC1> for Gpio39<Input<Floating>> {
     type ID = u8;
 
-    fn channel() -> u8 { 0_u8 }
+    fn channel() -> u8 { 4_u8 }
 }
 
-pub struct ADC<ADC, PIN> {
+pub struct ADC<ADC> {
     adc: PhantomData<ADC>,
-    pin: PhantomData<PIN>,
     active_channel: spin::Mutex<Option<u8>>,
 }
 
-impl<PIN> ADC<ADC1, PIN>
-    where PIN: Channel<ADC1, ID=u8> {
+impl ADC<ADC1> {
 
     pub fn adc1(config: config::Config) -> Result<Self, ()> {
         let adc = ADC {
                 adc: PhantomData,
-                pin: PhantomData,
-                active_channel: spin::Mutex::new(None)
+                active_channel: spin::Mutex::new(None),
             }
             .set_resolution(config.resolution)
-            .set_attenuation(config.attenuation)
+            .set_attenuation(config.attenuations)
             .set_controller()
             .set_power()
             .set_hall()
@@ -94,15 +104,19 @@ impl<PIN> ADC<ADC1, PIN>
         self
     }
 
-    pub fn set_attenuation(self, attenuation: config::Attenuation) -> Self {
+    pub fn set_attenuation(self, attenuations: [Option<config::Attenuation>; 10]) -> Self {
         let sensors = unsafe { &*SENS::ptr() };
         
-        sensors.sar_atten1.modify(|r, w| {
-            let new_value = (r.bits() & !(0b11 << (PIN::channel() * 2))) 
-                | (((attenuation as u8 & 0b11) as u32) << (PIN::channel() * 2));
-
-            unsafe { w.sar1_atten().bits(new_value) }
-        });
+        for channel in 0..10 {
+            if let Some(attenuation) = attenuations[channel] {
+                sensors.sar_atten1.modify(|r, w| {
+                    let new_value = (r.bits() & !(0b11 << (channel * 2))) 
+                        | (((attenuation as u8 & 0b11) as u32) << (channel * 2));
+        
+                    unsafe { w.sar1_atten().bits(new_value) }
+                });
+            }
+        }
 
         self
     }
@@ -159,15 +173,17 @@ impl<PIN> ADC<ADC1, PIN>
     }
 }
 
-impl<WORD, PIN> OneShot<ADC1, WORD, PIN> for ADC<ADC1, PIN>
+impl<WORD, PIN> OneShot<ADC1, WORD, PIN> for ADC<ADC1>
 where
    WORD: From<u16>,
    PIN: Channel<ADC1, ID=u8>,
 {
-    type Error = ();
+    type Error = AdcError;
 
     fn read(&mut self, _pin: &mut PIN) -> nb::Result<WORD, Self::Error> {
         let sensors = unsafe { &*SENS::ptr() };
+
+        // TODO: reject channels which are not configured
 
         let active_lock = self.active_channel.try_lock();
         if active_lock.is_none() {
