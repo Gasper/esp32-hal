@@ -2,9 +2,6 @@
 #![no_main]
 #![feature(asm)]
 
-#[macro_use(block)]
-extern crate nb;
-
 use xtensa_lx6_rt as _;
 
 use embedded_hal::adc::OneShot;
@@ -14,7 +11,7 @@ use core::panic::PanicInfo;
 use esp32;
 use esp32_hal::gpio::{GpioExt, Gpio36, Input, Floating};
 use esp32_hal::hal::digital::v2::OutputPin;
-use esp32_hal::analog::adc::{ADC, ADC1};
+use esp32_hal::analog::dac::{DAC, DAC1};
 
 use esp32_hal::hal::serial::Read as _;
 
@@ -26,7 +23,7 @@ use embedded_hal::watchdog::*;
 /// In most cases 40mhz (but can be as low as 2mhz depending on the board)
 const CORE_HZ: u32 = 40_000_000;
 
-const BLINK_HZ: u32 = CORE_HZ / 1;
+const INCREASE_HZ: u32 = CORE_HZ / 4;
 
 const WDT_WKEY_VALUE: u32 = 0x50D83AA1;
 
@@ -43,34 +40,18 @@ fn main() -> ! {
     disable_timg_wdts(&mut timg0, &mut timg1);
 
     let gpios = dp.GPIO.split();
-    let mut pin36 = gpios.gpio36.into_floating_input();
-    let mut pin39 = gpios.gpio39.into_floating_input();
 
     let mut clkcntrl = esp32_hal::clock_control::ClockControl::new(dp.RTCCNTL, dp.APB_CTRL);
     clkcntrl.watchdog().disable();
 
-    let serial = Serial::uart0(dp.UART0, (NoTx, NoRx), esp32_hal::serial::config::Config::default(), &mut clkcntrl).unwrap();
-    let baudrate = serial.get_baudrate();
+    let mut dac = DAC::dac1(213u8).unwrap();
 
-    let mut adc_config = esp32_hal::analog::config::AdcConfig::default();
-    adc_config.enable_hall_sensor();
-    adc_config.enable_pin(0, esp32_hal::analog::config::Attenuation::Attenuation0dB);
-    adc_config.enable_pin(3, esp32_hal::analog::config::Attenuation::Attenuation0dB);
-
-    let mut adc1: ADC<ADC1> = ADC::adc1(adc_config).unwrap();
-
-    let (mut tx, mut rx) = serial.split();
-    writeln!(tx, "baudrate {:?}", baudrate).unwrap();
-    delay(BLINK_HZ);
-
+    let mut voltage: u8 = 0;
     loop {
-        //let pin36_value: u16 = block!(adc1.read(&mut pin36)).unwrap();
-        //writeln!(tx, "ADC1 pin 36 raw value: {:?}", pin36_value).unwrap();
+        voltage = voltage.wrapping_add(1);
+        dac.write(voltage);
 
-        let hall_sensor_value: i32 = adc1.read_hall_sensor(&mut pin36, &mut pin39);
-        writeln!(tx, "Hall sensor raw value: {:?}", hall_sensor_value).unwrap();
-
-        delay(BLINK_HZ);
+        delay(INCREASE_HZ);
     }
 }   
 

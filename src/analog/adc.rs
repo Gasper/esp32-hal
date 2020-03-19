@@ -5,67 +5,14 @@ use core::marker::PhantomData;
 
 use crate::pac::{SENS, RTCIO};
 use crate::gpio::*;
-
+use crate::analog::config;
 
 pub struct ADC1;
 pub struct ADC2;
 
-pub mod config {
-    use embedded_hal::adc::Channel;
-    use crate::adc::ADC1;
-    
-    #[derive(PartialEq, Eq, Clone, Copy)]
-    pub enum Resolution {
-        Resolution9Bit = 0,
-        Resolution10Bit = 1,
-        Resolution11Bit = 2,
-        Resolution12Bit = 3,
-    }
-
-    #[derive(PartialEq, Eq, Clone, Copy)]
-    pub enum Attenuation {
-        Attenuation0bB = 0b00,
-        Attenuation2p5dB = 0b01,
-        Attenuation6dB = 0b10,
-        Attenuation11dB = 0b11,
-    }
-
-    pub struct Config {
-        pub resolution: Resolution,
-        pub attenuations: [Option<Attenuation>; 10],
-    }
-
-    impl Config {
-        pub fn enable_pin(&mut self, pin: u8, attenuation: Attenuation) {
-            self.attenuations[pin as usize] = Some(attenuation);
-        }
-    }
-
-    impl Default for Config {
-        fn default() -> Config {
-            Config {
-                resolution: Resolution::Resolution12Bit,
-                attenuations: [None; 10],
-            }
-        }
-    }
-}
-
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum AdcError {
     UnconfiguredChannel,
-}
-
-impl Channel<ADC1> for Gpio36<Input<Floating>> {
-    type ID = u8;
-
-    fn channel() -> u8 { 0_u8 }
-}
-
-impl Channel<ADC1> for Gpio39<Input<Floating>> {
-    type ID = u8;
-
-    fn channel() -> u8 { 4_u8 }
 }
 
 pub struct ADC<ADC> {
@@ -75,7 +22,7 @@ pub struct ADC<ADC> {
 
 impl ADC<ADC1> {
 
-    pub fn adc1(config: config::Config) -> Result<Self, ()> {
+    pub fn adc1(config: config::AdcConfig) -> Result<Self, ()> {
         let adc = ADC {
                 adc: PhantomData,
                 active_channel: spin::Mutex::new(None),
@@ -84,7 +31,7 @@ impl ADC<ADC1> {
             .set_attenuation(config.attenuations)
             .set_controller()
             .set_power()
-            .set_hall()
+            .set_hall(config.hall_sensor)
             .set_amp();
 
         Ok(adc)
@@ -107,7 +54,7 @@ impl ADC<ADC1> {
     pub fn set_attenuation(self, attenuations: [Option<config::Attenuation>; 10]) -> Self {
         let sensors = unsafe { &*SENS::ptr() };
         
-        for channel in 0..10 {
+        for channel in 0..attenuations.len() {
             if let Some(attenuation) = attenuations[channel] {
                 sensors.sar_atten1.modify(|r, w| {
                     let new_value = (r.bits() & !(0b11 << (channel * 2))) 
@@ -145,11 +92,15 @@ impl ADC<ADC1> {
         self
     }
 
-    pub fn set_hall(self) -> Self {
+    pub fn set_hall(self, use_hall_sensor: bool) -> Self {
         let rtcio = unsafe { &*RTCIO::ptr() };
 
-        // Hall disable
-        rtcio.rtc_io_hall_sens.modify(|_,w| w.rtc_io_xpd_hall().clear_bit());
+        if use_hall_sensor {
+            rtcio.rtc_io_hall_sens.modify(|_,w| w.rtc_io_xpd_hall().set_bit());
+        }
+        else {
+            rtcio.rtc_io_hall_sens.modify(|_,w| w.rtc_io_xpd_hall().clear_bit());
+        }
 
         self
     }
@@ -157,8 +108,7 @@ impl ADC<ADC1> {
     pub fn set_amp(self) -> Self {
         let sensors = unsafe { &*SENS::ptr() };
 
-        // AMP disable
-        // Close ADC AMP module if don't use it for power save.
+        // AMP disable - undocumented
         sensors.sar_meas_wait2.modify(|_,w| {
             unsafe { w.force_xpd_amp().bits(0b10) }
         });
@@ -234,3 +184,44 @@ where
     }
 }
 
+macro_rules! impl_adc {
+    ($adc:ident: [
+        $( ($pin:ident, $channel:expr) ,)+
+    ]) => {
+        $(
+            impl Channel<$adc> for $pin<Input<Floating>> {
+                type ID = u8;
+            
+                fn channel() -> u8 { $channel }
+            }
+        )+
+    }
+}
+
+impl_adc! {
+    ADC1: [
+        (Gpio36, 0), // Alt. name: SENSOR_VP
+        (Gpio37, 1), // Alt. name: SENSOR_CAPP
+        (Gpio38, 2), // Alt. name: SENSOR_CAPN
+        (Gpio39, 3), // Alt. name: SENSOR_VN
+        (Gpio33, 4), // Alt. name: 32K_XP
+        (Gpio32, 5), // Alt. name: 32K_XN
+        (Gpio34, 6), // Alt. name: VDET_1
+        (Gpio35, 7), // Alt. name: VDET_2
+    ]
+}
+
+impl_adc! {
+    ADC2: [
+        (Gpio4, 0),
+        (Gpio0, 1),
+        (Gpio2, 2),
+        (Gpio15, 3), // Alt. name: MTDO
+        (Gpio13, 4), // Alt. name: MTCK
+        (Gpio12, 5), // Alt. name: MTDI
+        (Gpio14, 6), // Alt. name: MTMS
+        (Gpio27, 7),
+        (Gpio25, 8),
+        (Gpio26, 9),
+    ]
+}
