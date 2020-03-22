@@ -1,5 +1,5 @@
 use {
-    crate::esp32::{GPIO, IO_MUX},
+    crate::esp32::{GPIO, IO_MUX, RTCIO},
     core::{convert::Infallible, marker::PhantomData},
     embedded_hal::digital::v2::{InputPin, OutputPin, StatefulOutputPin, ToggleableOutputPin},
 };
@@ -413,3 +413,67 @@ impl_input! {
     ]
 }
 
+macro_rules! impl_analog {
+    ([
+        $($pxi:ident: ($i:expr, $pin_reg:ident, $gpio_reg:ident, $mux_sel:ident, $fun_select:ident,
+          $pad_driver:ident, $in_enable:ident, $($rue:ident, $rde:ident)?),)+
+    ]) => {
+        $(
+            impl<MODE> $pxi<MODE> {
+                pub fn into_analog(self) -> $pxi<Analog> {
+                    let rtcio = unsafe{ &*RTCIO::ptr() };
+
+                    rtcio.$pin_reg.modify(|_,w| {
+                        // Connect pin to analog / RTC module instead of standard GPIO
+                        w.$mux_sel().set_bit();
+
+                        // Select function "RTC function 1" (GPIO) for analog use
+                        unsafe { w.$fun_select().bits(0b00) }
+                    });
+
+                    // Configure RTC pin as normal output (instead of open drain)
+                    rtcio.$gpio_reg.modify(|_,w| w.$pad_driver().clear_bit());
+
+                    // Disable output
+                    rtcio.rtc_gpio_enable_w1tc.modify(|_,w| {
+                        unsafe { w.rtc_gpio_enable_w1tc().bits(1u32 << $i) }
+                    });
+
+                    // Disable input
+                    rtcio.$pin_reg.modify(|_,w| w.$in_enable().clear_bit());
+
+                    // Disable pull-up and pull-down resistors on the pin, if it has them
+                    $(
+                        rtcio.$pin_reg.modify(|_,w| {
+                            w.$rue().clear_bit();
+                            w.$rde().clear_bit()
+                        });
+                    )?
+
+                    $pxi { _mode: PhantomData }
+                }
+            }
+        )+
+    }
+}
+
+impl_analog! {[
+    Gpio36: (0, rtc_io_sensor_pads, rtc_gpio_pin0, rtc_io_sense1_mux_sel, rtc_io_sense1_fun_sel, rtc_gpio_pin0_pad_driver, rtc_io_sense1_fun_ie,),
+    Gpio37: (1, rtc_io_sensor_pads, rtc_gpio_pin1, rtc_io_sense2_mux_sel, rtc_io_sense2_fun_sel, rtc_gpio_pin1_pad_driver, rtc_io_sense2_fun_ie,),
+    Gpio38: (2, rtc_io_sensor_pads, rtc_gpio_pin2, rtc_io_sense3_mux_sel, rtc_io_sense3_fun_sel, rtc_gpio_pin2_pad_driver, rtc_io_sense3_fun_ie,),
+    Gpio39: (3, rtc_io_sensor_pads, rtc_gpio_pin3, rtc_io_sense4_mux_sel, rtc_io_sense4_fun_sel, rtc_gpio_pin3_pad_driver, rtc_io_sense4_fun_ie,),
+    Gpio34: (4, rtc_io_adc_pad, rtc_gpio_pin4, rtc_io_adc1_mux_sel, rtc_io_adc1_fun_sel, rtc_gpio_pin4_pad_driver, rtc_io_adc1_fun_ie,),
+    Gpio35: (5, rtc_io_adc_pad, rtc_gpio_pin5, rtc_io_adc2_mux_sel, rtc_io_adc2_fun_sel, rtc_gpio_pin5_pad_driver, rtc_io_adc1_fun_ie,),
+    Gpio25: (6, rtc_io_pad_dac1, rtc_gpio_pin6, rtc_io_pdac1_mux_sel, rtc_io_pdac1_fun_sel, rtc_gpio_pin6_pad_driver, rtc_io_pdac1_fun_ie, rtc_io_pdac1_rue, rtc_io_pdac1_rde),
+    Gpio26: (7, rtc_io_pad_dac2, rtc_gpio_pin7, rtc_io_pdac2_mux_sel, rtc_io_pdac2_fun_sel, rtc_gpio_pin7_pad_driver, rtc_io_pdac2_fun_ie, rtc_io_pdac2_rue, rtc_io_pdac2_rde),
+    Gpio33: (8, rtc_io_xtal_32k_pad, rtc_gpio_pin8, rtc_io_x32n_mux_sel, rtc_io_x32n_fun_sel, rtc_gpio_pin8_pad_driver, rtc_io_x32n_fun_ie, rtc_io_x32n_rue, rtc_io_x32n_rde),
+    Gpio32: (9, rtc_io_xtal_32k_pad, rtc_gpio_pin9, rtc_io_x32p_mux_sel, rtc_io_x32p_fun_sel, rtc_gpio_pin9_pad_driver, rtc_io_x32p_fun_ie, rtc_io_x32p_rue, rtc_io_x32p_rde),
+    Gpio4:  (10, rtc_io_touch_pad0, rtc_gpio_pin10, rtc_io_touch_pad0_mux_sel, rtc_io_touch_pad0_fun_sel, rtc_gpio_pin10_pad_driver, rtc_io_touch_pad0_fun_ie, rtc_io_touch_pad0_rue, rtc_io_touch_pad0_rde),
+    Gpio0:  (11, rtc_io_touch_pad1, rtc_gpio_pin11, rtc_io_touch_pad1_mux_sel, rtc_io_touch_pad1_fun_sel, rtc_gpio_pin11_pad_driver, rtc_io_touch_pad1_fun_ie, rtc_io_touch_pad1_rue, rtc_io_touch_pad1_rde),
+    Gpio2:  (12, rtc_io_touch_pad2, rtc_gpio_pin12, rtc_io_touch_pad2_mux_sel, rtc_io_touch_pad2_fun_sel, rtc_gpio_pin12_pad_driver, rtc_io_touch_pad2_fun_ie, rtc_io_touch_pad2_rue, rtc_io_touch_pad2_rde),
+    Gpio15: (13, rtc_io_touch_pad3, rtc_gpio_pin13, rtc_io_touch_pad3_mux_sel, rtc_io_touch_pad3_fun_sel, rtc_gpio_pin13_pad_driver, rtc_io_touch_pad3_fun_ie, rtc_io_touch_pad3_rue, rtc_io_touch_pad3_rde),
+    Gpio13: (14, rtc_io_touch_pad4, rtc_gpio_pin14, rtc_io_touch_pad4_mux_sel, rtc_io_touch_pad4_fun_sel, rtc_gpio_pin14_pad_driver, rtc_io_touch_pad4_fun_ie, rtc_io_touch_pad4_rue, rtc_io_touch_pad4_rde),
+    Gpio12: (15, rtc_io_touch_pad5, rtc_gpio_pin15, rtc_io_touch_pad5_mux_sel, rtc_io_touch_pad5_fun_sel, rtc_gpio_pin15_pad_driver, rtc_io_touch_pad5_fun_ie, rtc_io_touch_pad5_rue, rtc_io_touch_pad5_rde),
+    Gpio14: (16, rtc_io_touch_pad6, rtc_gpio_pin16, rtc_io_touch_pad6_mux_sel, rtc_io_touch_pad6_fun_sel, rtc_gpio_pin16_pad_driver, rtc_io_touch_pad6_fun_ie, rtc_io_touch_pad6_rue, rtc_io_touch_pad6_rde),
+    Gpio27: (17, rtc_io_touch_pad7, rtc_gpio_pin17, rtc_io_touch_pad7_mux_sel, rtc_io_touch_pad7_fun_sel, rtc_gpio_pin17_pad_driver, rtc_io_touch_pad7_fun_ie, rtc_io_touch_pad7_rue, rtc_io_touch_pad7_rde),
+]}

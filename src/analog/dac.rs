@@ -27,8 +27,10 @@ impl DAC<DAC1, u8> {
     fn set_power(self) -> Self {
         let rtcio = unsafe { &*RTCIO::ptr() };
 
-        rtcio.rtc_io_pad_dac1.modify(|_,w| w.rtc_io_pdac1_dac_xpd_force().set_bit());
-        rtcio.rtc_io_pad_dac1.modify(|_,w| w.rtc_io_pdac1_xpd_dac().set_bit());
+        rtcio.rtc_io_pad_dac1.modify(|_,w| {
+            w.rtc_io_pdac1_dac_xpd_force().set_bit();
+            w.rtc_io_pdac1_xpd_dac().set_bit()
+        });
 
         self
     }
