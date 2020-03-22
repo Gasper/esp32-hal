@@ -40,16 +40,23 @@ fn main() -> ! {
     disable_timg_wdts(&mut timg0, &mut timg1);
 
     let gpios = dp.GPIO.split();
+    let pin25 = gpios.gpio25.into_analog();
+    let pin26 = gpios.gpio26.into_analog();
 
     let mut clkcntrl = esp32_hal::clock_control::ClockControl::new(dp.RTCCNTL, dp.APB_CTRL);
     clkcntrl.watchdog().disable();
 
-    let mut dac = DAC::dac1(213u8).unwrap();
+    let mut dac1 = DAC::dac1(pin25).unwrap();
+    let mut dac2 = DAC::dac2(pin26).unwrap();
 
-    let mut voltage: u8 = 0;
+    let mut voltage_dac1: u8 = 0;
+    let mut voltage_dac2: u8 = 255;
     loop {
-        voltage = voltage.wrapping_add(1);
-        dac.write(voltage);
+        voltage_dac1 = voltage_dac1.wrapping_add(1);
+        dac1.write(voltage_dac1);
+
+        voltage_dac2 = voltage_dac2.wrapping_sub(1);
+        dac2.write(voltage_dac2);
 
         delay(INCREASE_HZ);
     }
