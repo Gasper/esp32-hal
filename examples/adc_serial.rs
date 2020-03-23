@@ -12,7 +12,7 @@ use embedded_hal::adc::OneShot;
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use esp32;
-use esp32_hal::gpio::{GpioExt, Gpio36, Input, Floating};
+use esp32_hal::gpio::{GpioExt};
 use esp32_hal::hal::digital::v2::OutputPin;
 use esp32_hal::analog::adc::{ADC, ADC1};
 
@@ -43,8 +43,8 @@ fn main() -> ! {
     disable_timg_wdts(&mut timg0, &mut timg1);
 
     let gpios = dp.GPIO.split();
-    let mut pin36 = gpios.gpio36.into_floating_input();
-    let mut pin39 = gpios.gpio39.into_floating_input();
+    let mut pin36 = gpios.gpio36.into_analog();
+    let mut pin39 = gpios.gpio39.into_analog();
 
     let mut clkcntrl = esp32_hal::clock_control::ClockControl::new(dp.RTCCNTL, dp.APB_CTRL);
     clkcntrl.watchdog().disable();

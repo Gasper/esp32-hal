@@ -189,7 +189,7 @@ macro_rules! impl_adc {
         $( ($pin:ident, $channel:expr) ,)+
     ]) => {
         $(
-            impl Channel<$adc> for $pin<Input<Floating>> {
+            impl Channel<$adc> for $pin<Analog> {
                 type ID = u8;
             
                 fn channel() -> u8 { $channel }

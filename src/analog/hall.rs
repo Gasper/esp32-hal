@@ -5,8 +5,8 @@ use crate::pac::{RTCIO};
 use crate::gpio::*;
 
 impl ADC<ADC1> {
-    pub fn read_hall_sensor(&mut self, vp_pin: &mut Gpio36<Input<Floating>>,
-        vn_pin: &mut Gpio39<Input<Floating>>) -> i32
+    pub fn read_hall_sensor(&mut self, vp_pin: &mut Gpio36<Analog>,
+        vn_pin: &mut Gpio39<Analog>) -> i32
     {
         let rtcio = unsafe { &*RTCIO::ptr() };
 
