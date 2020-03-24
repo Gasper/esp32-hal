@@ -1,3 +1,5 @@
+use embedded_hal::adc::Channel;
+use crate::analog::ADC1;
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum Resolution {
@@ -21,9 +23,9 @@ pub struct AdcConfig {
     pub attenuations: [Option<Attenuation>; 10],
 }
 
-impl AdcConfig {
-    pub fn enable_pin(&mut self, pin: u8, attenuation: Attenuation) {
-        self.attenuations[pin as usize] = Some(attenuation);
+impl AdcConfig{
+    pub fn enable_pin<PIN: Channel<ADC1, ID=u8>>(&mut self, _pin: &PIN, attenuation: Attenuation) {
+        self.attenuations[PIN::channel() as usize] = Some(attenuation);
     }
 
     pub fn enable_hall_sensor(&mut self) {

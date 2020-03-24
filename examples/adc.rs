@@ -50,7 +50,7 @@ fn main() -> ! {
     let baudrate = serial.get_baudrate();
 
     let mut adc_config = esp32_hal::analog::config::AdcConfig::default();
-    adc_config.enable_pin(0, esp32_hal::analog::config::Attenuation::Attenuation0dB);
+    adc_config.enable_pin(&pin36, esp32_hal::analog::config::Attenuation::Attenuation0dB);
 
     let analog = dp.SENS.split();
     let mut adc1 = ADC::adc1(analog.adc1, adc_config).unwrap();
