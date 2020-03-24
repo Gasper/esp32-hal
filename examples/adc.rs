@@ -5,6 +5,8 @@
 #[macro_use(block)]
 extern crate nb;
 
+use embedded_hal::adc::OneShot;
+
 use xtensa_lx6_rt as _;
 
 use core::fmt::Write;
@@ -40,7 +42,6 @@ fn main() -> ! {
 
     let gpios = dp.GPIO.split();
     let mut pin36 = gpios.gpio36.into_analog();
-    let mut pin39 = gpios.gpio39.into_analog();
 
     let mut clkcntrl = esp32_hal::clock_control::ClockControl::new(dp.RTCCNTL, dp.APB_CTRL);
     clkcntrl.watchdog().disable();
@@ -49,9 +50,7 @@ fn main() -> ! {
     let baudrate = serial.get_baudrate();
 
     let mut adc_config = esp32_hal::analog::config::AdcConfig::default();
-    adc_config.enable_hall_sensor();
     adc_config.enable_pin(0, esp32_hal::analog::config::Attenuation::Attenuation0dB);
-    adc_config.enable_pin(3, esp32_hal::analog::config::Attenuation::Attenuation0dB);
 
     let analog = dp.SENS.split();
     let mut adc1 = ADC::adc1(analog.adc1, adc_config).unwrap();
@@ -61,11 +60,8 @@ fn main() -> ! {
     delay(BLINK_HZ);
 
     loop {
-        //let pin36_value: u16 = block!(adc1.read(&mut pin36)).unwrap();
-        //writeln!(tx, "ADC1 pin 36 raw value: {:?}", pin36_value).unwrap();
-
-        let hall_sensor_value: i32 = adc1.read_hall_sensor(&mut pin36, &mut pin39);
-        writeln!(tx, "Hall sensor raw value: {:?}", hall_sensor_value).unwrap();
+        let pin36_value: u16 = block!(adc1.read(&mut pin36)).unwrap();
+        writeln!(tx, "ADC1 pin 36 raw value: {:?}", pin36_value).unwrap();
 
         delay(BLINK_HZ);
     }

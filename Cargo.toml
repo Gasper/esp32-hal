@@ -51,4 +51,7 @@ name = "rtccntl"
 name = "adc"
 
 [[example]]
-name = "adc_serial"
+name = "hall"
+
+[[example]]
+name = "dac"
