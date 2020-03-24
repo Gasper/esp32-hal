@@ -6,9 +6,7 @@ use core::marker::PhantomData;
 use crate::pac::{SENS, RTCIO};
 use crate::gpio::*;
 use crate::analog::config;
-
-pub struct ADC1;
-pub struct ADC2;
+use crate::analog::{ADC1, ADC2};
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum AdcError {
@@ -22,7 +20,7 @@ pub struct ADC<ADC> {
 
 impl ADC<ADC1> {
 
-    pub fn adc1(config: config::AdcConfig) -> Result<Self, ()> {
+    pub fn adc1(_adc_instance: ADC1, config: config::AdcConfig) -> Result<Self, ()> {
         let adc = ADC {
                 adc: PhantomData,
                 active_channel: spin::Mutex::new(None),

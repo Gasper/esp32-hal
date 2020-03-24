@@ -1,5 +1,6 @@
 
 use embedded_hal::adc::OneShot;
+use crate::analog::ADC1;
 use crate::analog::adc::*;
 use crate::pac::{RTCIO};
 use crate::gpio::*;

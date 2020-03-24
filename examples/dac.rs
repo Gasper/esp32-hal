@@ -4,27 +4,18 @@
 
 use xtensa_lx6_rt as _;
 
-use embedded_hal::adc::OneShot;
-
-use core::fmt::Write;
 use core::panic::PanicInfo;
 use esp32;
-use esp32_hal::gpio::{GpioExt, Gpio36, Input, Floating};
-use esp32_hal::hal::digital::v2::OutputPin;
-use esp32_hal::analog::dac::{DAC, DAC1};
-
-use esp32_hal::hal::serial::Read as _;
-
-use esp32_hal::serial::{NoRx, NoTx, Serial};
+use esp32_hal::gpio::GpioExt;
+use esp32_hal::analog::SensExt;
+use esp32_hal::analog::dac::{DAC};
 
 use embedded_hal::watchdog::*;
 
 /// The default clock source is the onboard crystal
 /// In most cases 40mhz (but can be as low as 2mhz depending on the board)
 const CORE_HZ: u32 = 40_000_000;
-
 const INCREASE_HZ: u32 = CORE_HZ / 4;
-
 const WDT_WKEY_VALUE: u32 = 0x50D83AA1;
 
 #[no_mangle]
@@ -46,8 +37,9 @@ fn main() -> ! {
     let mut clkcntrl = esp32_hal::clock_control::ClockControl::new(dp.RTCCNTL, dp.APB_CTRL);
     clkcntrl.watchdog().disable();
 
-    let mut dac1 = DAC::dac1(pin25).unwrap();
-    let mut dac2 = DAC::dac2(pin26).unwrap();
+    let analog = dp.SENS.split();
+    let mut dac1 = DAC::dac1(analog.dac1, pin25).unwrap();
+    let mut dac2 = DAC::dac2(analog.dac2, pin26).unwrap();
 
     let mut voltage_dac1: u8 = 0;
     let mut voltage_dac2: u8 = 255;

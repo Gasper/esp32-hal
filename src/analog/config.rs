@@ -1,5 +1,3 @@
-use embedded_hal::adc::Channel;
-use crate::analog::adc::ADC1;
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum Resolution {

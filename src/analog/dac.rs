@@ -1,22 +1,20 @@
 
 use core::marker::PhantomData;
 
+use crate::analog::{DAC1, DAC2};
 use crate::pac::{SENS, RTCIO};
 use crate::gpio::*;
 
-pub struct DAC1;
-pub struct DAC2;
-
 pub struct DAC<DAC, PIN> {
     _dac: PhantomData<DAC>,
-    pin: PIN,
+    _pin: PhantomData<PIN>,
 }
 
 impl DAC<DAC1, Gpio25<Analog>> {
-    pub fn dac1(pin: Gpio25<Analog>) -> Result<Self, ()> {
-        let dac = DAC {
+    pub fn dac1(_dac: DAC1, _pin: Gpio25<Analog>) -> Result<Self, ()> {
+        let dac = DAC::<DAC1, Gpio25<Analog>> {
                 _dac: PhantomData,
-                pin: pin,
+                _pin: PhantomData,
             }
             .set_power();
 
@@ -46,10 +44,10 @@ impl DAC<DAC1, Gpio25<Analog>> {
 }
 
 impl DAC<DAC2, Gpio26<Analog>> {
-    pub fn dac2(pin: Gpio26<Analog>) -> Result<Self, ()> {
-        let dac = DAC {
+    pub fn dac2(_dac: DAC2, _pin: Gpio26<Analog>) -> Result<Self, ()> {
+        let dac = DAC::<DAC2, Gpio26<Analog>> {
                 _dac: PhantomData,
-                pin: pin,
+                _pin: PhantomData,
             }
             .set_power();
 

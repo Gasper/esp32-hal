@@ -7,16 +7,12 @@ extern crate nb;
 
 use xtensa_lx6_rt as _;
 
-use embedded_hal::adc::OneShot;
-
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use esp32;
 use esp32_hal::gpio::{GpioExt};
-use esp32_hal::hal::digital::v2::OutputPin;
-use esp32_hal::analog::adc::{ADC, ADC1};
-
-use esp32_hal::hal::serial::Read as _;
+use esp32_hal::analog::SensExt;
+use esp32_hal::analog::adc::ADC;
 
 use esp32_hal::serial::{NoRx, NoTx, Serial};
 
@@ -57,9 +53,10 @@ fn main() -> ! {
     adc_config.enable_pin(0, esp32_hal::analog::config::Attenuation::Attenuation0dB);
     adc_config.enable_pin(3, esp32_hal::analog::config::Attenuation::Attenuation0dB);
 
-    let mut adc1: ADC<ADC1> = ADC::adc1(adc_config).unwrap();
+    let analog = dp.SENS.split();
+    let mut adc1 = ADC::adc1(analog.adc1, adc_config).unwrap();
 
-    let (mut tx, mut rx) = serial.split();
+    let (mut tx, _rx) = serial.split();
     writeln!(tx, "baudrate {:?}", baudrate).unwrap();
     delay(BLINK_HZ);
 
