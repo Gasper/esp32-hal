@@ -20,7 +20,7 @@ pub struct ADC<ADC> {
 
 impl ADC<ADC1> {
 
-    pub fn adc1(_adc_instance: ADC1, config: config::AdcConfig) -> Result<Self, ()> {
+    pub fn adc1(_adc_instance: ADC1, config: config::Adc1Config) -> Result<Self, ()> {
         let adc = ADC {
                 adc: PhantomData,
                 active_channel: spin::Mutex::new(None),

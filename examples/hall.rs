@@ -45,7 +45,7 @@ fn main() -> ! {
     let serial = Serial::uart0(dp.UART0, (NoTx, NoRx), esp32_hal::serial::config::Config::default(), &mut clkcntrl).unwrap();
     let baudrate = serial.get_baudrate();
 
-    let mut adc_config = esp32_hal::analog::config::AdcConfig::default();
+    let mut adc_config = esp32_hal::analog::config::Adc1Config::new();
     adc_config.enable_hall_sensor();
     adc_config.enable_pin(&pin36, esp32_hal::analog::config::Attenuation::Attenuation0dB);
     adc_config.enable_pin(&pin39, esp32_hal::analog::config::Attenuation::Attenuation0dB);
