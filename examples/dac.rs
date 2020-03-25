@@ -6,9 +6,9 @@ use xtensa_lx6_rt as _;
 
 use core::panic::PanicInfo;
 use esp32;
-use esp32_hal::gpio::GpioExt;
+use esp32_hal::analog::dac::DAC;
 use esp32_hal::analog::SensExt;
-use esp32_hal::analog::dac::{DAC};
+use esp32_hal::gpio::GpioExt;
 
 use embedded_hal::watchdog::*;
 
@@ -55,7 +55,7 @@ fn main() -> ! {
 
         delay(INCREASE_HZ);
     }
-}   
+}
 
 fn disable_timg_wdts(timg0: &mut esp32::TIMG0, timg1: &mut esp32::TIMG1) {
     timg0

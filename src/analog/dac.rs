@@ -1,9 +1,8 @@
-
 use core::marker::PhantomData;
 
 use crate::analog::{DAC1, DAC2};
-use crate::pac::{SENS, RTCIO};
-use crate::gpio::{Gpio25, Gpio26, Analog};
+use crate::gpio::{Analog, Gpio25, Gpio26};
+use crate::pac::{RTCIO, SENS};
 
 pub struct DAC<DAC> {
     _dac: PhantomData<DAC>,
@@ -11,10 +10,7 @@ pub struct DAC<DAC> {
 
 impl DAC<DAC1> {
     pub fn dac1(_dac: DAC1, _pin: Gpio25<Analog>) -> Result<Self, ()> {
-        let dac = DAC::<DAC1> {
-                _dac: PhantomData,
-            }
-            .set_power();
+        let dac = DAC::<DAC1> { _dac: PhantomData }.set_power();
 
         Ok(dac)
     }
@@ -22,7 +18,7 @@ impl DAC<DAC1> {
     fn set_power(self) -> Self {
         let rtcio = unsafe { &*RTCIO::ptr() };
 
-        rtcio.rtc_io_pad_dac1.modify(|_,w| {
+        rtcio.rtc_io_pad_dac1.modify(|_, w| {
             w.rtc_io_pdac1_dac_xpd_force().set_bit();
             w.rtc_io_pdac1_xpd_dac().set_bit()
         });
@@ -34,19 +30,18 @@ impl DAC<DAC1> {
         let rtcio = unsafe { &*RTCIO::ptr() };
         let sensors = unsafe { &*SENS::ptr() };
 
-        sensors.sar_dac_ctrl2.modify(|_,w| w.dac_cw_en1().clear_bit());
-        rtcio.rtc_io_pad_dac1.modify(|_,w| {
-            unsafe { w.rtc_io_pdac1_dac().bits(value) }
-        });
+        sensors
+            .sar_dac_ctrl2
+            .modify(|_, w| w.dac_cw_en1().clear_bit());
+        rtcio
+            .rtc_io_pad_dac1
+            .modify(|_, w| unsafe { w.rtc_io_pdac1_dac().bits(value) });
     }
 }
 
 impl DAC<DAC2> {
     pub fn dac2(_dac: DAC2, _pin: Gpio26<Analog>) -> Result<Self, ()> {
-        let dac = DAC::<DAC2> {
-                _dac: PhantomData,
-            }
-            .set_power();
+        let dac = DAC::<DAC2> { _dac: PhantomData }.set_power();
 
         Ok(dac)
     }
@@ -54,7 +49,7 @@ impl DAC<DAC2> {
     fn set_power(self) -> Self {
         let rtcio = unsafe { &*RTCIO::ptr() };
 
-        rtcio.rtc_io_pad_dac2.modify(|_,w| {
+        rtcio.rtc_io_pad_dac2.modify(|_, w| {
             w.rtc_io_pdac2_dac_xpd_force().set_bit();
             w.rtc_io_pdac2_xpd_dac().set_bit()
         });
@@ -66,9 +61,11 @@ impl DAC<DAC2> {
         let rtcio = unsafe { &*RTCIO::ptr() };
         let sensors = unsafe { &*SENS::ptr() };
 
-        sensors.sar_dac_ctrl2.modify(|_,w| w.dac_cw_en2().clear_bit());
-        rtcio.rtc_io_pad_dac2.modify(|_,w| {
-            unsafe { w.rtc_io_pdac2_dac().bits(value) }
-        });
+        sensors
+            .sar_dac_ctrl2
+            .modify(|_, w| w.dac_cw_en2().clear_bit());
+        rtcio
+            .rtc_io_pad_dac2
+            .modify(|_, w| unsafe { w.rtc_io_pdac2_dac().bits(value) });
     }
 }

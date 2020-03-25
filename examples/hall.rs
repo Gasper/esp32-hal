@@ -7,9 +7,9 @@ use xtensa_lx6_rt as _;
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use esp32;
-use esp32_hal::gpio::{GpioExt};
-use esp32_hal::analog::SensExt;
 use esp32_hal::analog::adc::ADC;
+use esp32_hal::analog::SensExt;
+use esp32_hal::gpio::GpioExt;
 
 use esp32_hal::serial::{NoRx, NoTx, Serial};
 
@@ -42,13 +42,25 @@ fn main() -> ! {
     let mut clkcntrl = esp32_hal::clock_control::ClockControl::new(dp.RTCCNTL, dp.APB_CTRL);
     clkcntrl.watchdog().disable();
 
-    let serial = Serial::uart0(dp.UART0, (NoTx, NoRx), esp32_hal::serial::config::Config::default(), &mut clkcntrl).unwrap();
+    let serial = Serial::uart0(
+        dp.UART0,
+        (NoTx, NoRx),
+        esp32_hal::serial::config::Config::default(),
+        &mut clkcntrl,
+    )
+    .unwrap();
     let baudrate = serial.get_baudrate();
 
     let mut adc_config = esp32_hal::analog::config::Adc1Config::new();
     adc_config.enable_hall_sensor();
-    adc_config.enable_pin(&pin36, esp32_hal::analog::config::Attenuation::Attenuation0dB);
-    adc_config.enable_pin(&pin39, esp32_hal::analog::config::Attenuation::Attenuation0dB);
+    adc_config.enable_pin(
+        &pin36,
+        esp32_hal::analog::config::Attenuation::Attenuation0dB,
+    );
+    adc_config.enable_pin(
+        &pin39,
+        esp32_hal::analog::config::Attenuation::Attenuation0dB,
+    );
 
     let analog = dp.SENS.split();
     let mut adc1 = ADC::adc1(analog.adc1, adc_config).unwrap();
@@ -63,7 +75,7 @@ fn main() -> ! {
 
         delay(BLINK_HZ);
     }
-}   
+}
 
 fn disable_timg_wdts(timg0: &mut esp32::TIMG0, timg1: &mut esp32::TIMG1) {
     timg0

@@ -35,10 +35,18 @@ pub trait SensExt {
 impl SensExt for SENS {
     fn split(self) -> AvailableAnalog {
         AvailableAnalog {
-            adc1: ADC1 { _private: PhantomData },
-            adc2: ADC2 { _private: PhantomData },
-            dac1: DAC1 { _private: PhantomData },
-            dac2: DAC2 { _private: PhantomData },
+            adc1: ADC1 {
+                _private: PhantomData,
+            },
+            adc2: ADC2 {
+                _private: PhantomData,
+            },
+            dac1: DAC1 {
+                _private: PhantomData,
+            },
+            dac2: DAC2 {
+                _private: PhantomData,
+            },
         }
     }
 }

@@ -5,20 +5,14 @@
 #[macro_use(block)]
 extern crate nb;
 
-use embedded_hal::adc::OneShot;
-
 use xtensa_lx6_rt as _;
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use esp32;
-use esp32_hal::gpio::{GpioExt};
-use esp32_hal::analog::SensExt;
 use esp32_hal::analog::adc::ADC;
-
+use esp32_hal::prelude::*;
 use esp32_hal::serial::{NoRx, NoTx, Serial};
-
-use embedded_hal::watchdog::*;
 
 /// The default clock source is the onboard crystal
 /// In most cases 40mhz (but can be as low as 2mhz depending on the board)
@@ -43,7 +37,13 @@ fn main() -> ! {
     let mut clkcntrl = esp32_hal::clock_control::ClockControl::new(dp.RTCCNTL, dp.APB_CTRL);
     clkcntrl.watchdog().disable();
 
-    let serial = Serial::uart0(dp.UART0, (NoTx, NoRx), esp32_hal::serial::config::Config::default(), &mut clkcntrl).unwrap();
+    let serial = Serial::uart0(
+        dp.UART0,
+        (NoTx, NoRx),
+        esp32_hal::serial::config::Config::default(),
+        &mut clkcntrl,
+    )
+    .unwrap();
     let (mut tx, _rx) = serial.split();
 
     /* Set ADC pins into analog mode */
@@ -53,10 +53,16 @@ fn main() -> ! {
 
     /* Prepare ADC configs by enabling pins, which will be used */
     let mut adc1_config = esp32_hal::analog::config::Adc1Config::new();
-    adc1_config.enable_pin(&pin36, esp32_hal::analog::config::Attenuation::Attenuation11dB);
+    adc1_config.enable_pin(
+        &pin36,
+        esp32_hal::analog::config::Attenuation::Attenuation11dB,
+    );
 
     let mut adc2_config = esp32_hal::analog::config::Adc2Config::new();
-    adc2_config.enable_pin(&pin25, esp32_hal::analog::config::Attenuation::Attenuation11dB);
+    adc2_config.enable_pin(
+        &pin25,
+        esp32_hal::analog::config::Attenuation::Attenuation11dB,
+    );
 
     /* Create ADC instances */
     let analog = dp.SENS.split();
@@ -74,7 +80,7 @@ fn main() -> ! {
 
         delay(BLINK_HZ);
     }
-}   
+}
 
 fn disable_timg_wdts(timg0: &mut esp32::TIMG0, timg1: &mut esp32::TIMG1) {
     timg0

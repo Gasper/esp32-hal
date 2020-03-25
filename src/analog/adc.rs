@@ -1,12 +1,12 @@
 extern crate spin;
 
-use embedded_hal::adc::{Channel, OneShot};
 use core::marker::PhantomData;
+use embedded_hal::adc::{Channel, OneShot};
 
-use crate::pac::{SENS, RTCIO};
-use crate::gpio::*;
 use crate::analog::config;
 use crate::analog::{ADC1, ADC2};
+use crate::gpio::*;
+use crate::pac::{RTCIO, SENS};
 
 pub struct ADC<ADC> {
     adc: PhantomData<ADC>,
@@ -17,14 +17,17 @@ macro_rules! impl_adc_setup {
     ($config:expr, $bit_width:ident, $read_reg:ident, $sample_bit:ident, $atten_reg: ident,
         $atten_field:ident, $dig_force:ident, $meas_start_reg:ident,
         $start_force_field:ident, $en_pad_force:ident) => {
-
         let sensors = unsafe { &*SENS::ptr() };
 
         /* Set reading and sampling resolution */
         let resolution: u8 = $config.resolution as u8;
 
-        sensors.sar_start_force.modify(|_,w| unsafe { w.$bit_width().bits(resolution) });
-        sensors.$read_reg.modify(|_,w| unsafe { w.$sample_bit().bits(resolution) });
+        sensors
+            .sar_start_force
+            .modify(|_, w| unsafe { w.$bit_width().bits(resolution) });
+        sensors
+            .$read_reg
+            .modify(|_, w| unsafe { w.$sample_bit().bits(resolution) });
 
         /* Set attenuation for pins */
         let attenuations = $config.attenuations;
@@ -32,50 +35,85 @@ macro_rules! impl_adc_setup {
         for channel in 0..attenuations.len() {
             if let Some(attenuation) = attenuations[channel] {
                 sensors.$atten_reg.modify(|r, w| {
-                    let new_value = (r.bits() & !(0b11 << (channel * 2))) 
+                    let new_value = (r.bits() & !(0b11 << (channel * 2)))
                         | (((attenuation as u8 & 0b11) as u32) << (channel * 2));
-        
+
                     unsafe { w.$atten_field().bits(new_value) }
                 });
             }
-        };
+        }
 
         /* Set controller to RTC */
-        sensors.$read_reg.modify(|_,w| w.$dig_force().clear_bit());
-        sensors.$meas_start_reg.modify(|_,w| w.$start_force_field().set_bit());
-        sensors.$meas_start_reg.modify(|_,w| w.$en_pad_force().set_bit());
-        sensors.sar_touch_ctrl1.modify(|_,w| w.xpd_hall_force().set_bit());
-        sensors.sar_touch_ctrl1.modify(|_,w| w.hall_phase_force().set_bit());
+        sensors.$read_reg.modify(|_, w| w.$dig_force().clear_bit());
+        sensors
+            .$meas_start_reg
+            .modify(|_, w| w.$start_force_field().set_bit());
+        sensors
+            .$meas_start_reg
+            .modify(|_, w| w.$en_pad_force().set_bit());
+        sensors
+            .sar_touch_ctrl1
+            .modify(|_, w| w.xpd_hall_force().set_bit());
+        sensors
+            .sar_touch_ctrl1
+            .modify(|_, w| w.hall_phase_force().set_bit());
 
         /* Set power to SW power on */
-        sensors.sar_meas_wait2.modify(|_,w| unsafe { w.force_xpd_sar().bits(0b11) });
+        sensors
+            .sar_meas_wait2
+            .modify(|_, w| unsafe { w.force_xpd_sar().bits(0b11) });
 
         /* disable AMP */
-        sensors.sar_meas_wait2.modify(|_,w| unsafe { w.force_xpd_amp().bits(0b10) });
-        sensors.sar_meas_ctrl.modify(|_,w| unsafe { w.amp_rst_fb_fsm().bits(0) });
-        sensors.sar_meas_ctrl.modify(|_,w| unsafe { w.amp_short_ref_fsm().bits(0) });
-        sensors.sar_meas_ctrl.modify(|_,w| unsafe { w.amp_short_ref_gnd_fsm().bits(0) });
-        sensors.sar_meas_wait1.modify(|_,w| unsafe { w.sar_amp_wait1().bits(1) });
-        sensors.sar_meas_wait1.modify(|_,w| unsafe { w.sar_amp_wait2().bits(1) });
-        sensors.sar_meas_wait2.modify(|_,w| unsafe { w.sar_amp_wait3().bits(1) });
+        sensors
+            .sar_meas_wait2
+            .modify(|_, w| unsafe { w.force_xpd_amp().bits(0b10) });
+        sensors
+            .sar_meas_ctrl
+            .modify(|_, w| unsafe { w.amp_rst_fb_fsm().bits(0) });
+        sensors
+            .sar_meas_ctrl
+            .modify(|_, w| unsafe { w.amp_short_ref_fsm().bits(0) });
+        sensors
+            .sar_meas_ctrl
+            .modify(|_, w| unsafe { w.amp_short_ref_gnd_fsm().bits(0) });
+        sensors
+            .sar_meas_wait1
+            .modify(|_, w| unsafe { w.sar_amp_wait1().bits(1) });
+        sensors
+            .sar_meas_wait1
+            .modify(|_, w| unsafe { w.sar_amp_wait2().bits(1) });
+        sensors
+            .sar_meas_wait2
+            .modify(|_, w| unsafe { w.sar_amp_wait3().bits(1) });
     };
 }
 
 impl ADC<ADC1> {
     pub fn adc1(_adc_instance: ADC1, config: config::Adc1Config) -> Result<Self, ()> {
-        
-        impl_adc_setup! (config, sar1_bit_width, sar_read_ctrl, sar1_sample_bit, sar_atten1,
-            sar1_atten, sar1_dig_force, sar_meas_start1,
-            meas1_start_force, sar1_en_pad_force);
-        
+        impl_adc_setup!(
+            config,
+            sar1_bit_width,
+            sar_read_ctrl,
+            sar1_sample_bit,
+            sar_atten1,
+            sar1_atten,
+            sar1_dig_force,
+            sar_meas_start1,
+            meas1_start_force,
+            sar1_en_pad_force
+        );
+
         /* Connect or disconnect hall sensor */
         let rtcio = unsafe { &*RTCIO::ptr() };
 
         if config.hall_sensor {
-            rtcio.rtc_io_hall_sens.modify(|_,w| w.rtc_io_xpd_hall().set_bit());
-        }
-        else {
-            rtcio.rtc_io_hall_sens.modify(|_,w| w.rtc_io_xpd_hall().clear_bit());
+            rtcio
+                .rtc_io_hall_sens
+                .modify(|_, w| w.rtc_io_xpd_hall().set_bit());
+        } else {
+            rtcio
+                .rtc_io_hall_sens
+                .modify(|_, w| w.rtc_io_xpd_hall().clear_bit());
         }
 
         let adc = ADC {
@@ -89,11 +127,19 @@ impl ADC<ADC1> {
 
 impl ADC<ADC2> {
     pub fn adc2(_adc_instance: ADC2, config: config::Adc2Config) -> Result<Self, ()> {
-        
-        impl_adc_setup! (config, sar2_bit_width, sar_read_ctrl2, sar2_sample_bit, sar_atten2,
-            sar2_atten, sar2_dig_force, sar_meas_start2,
-            meas2_start_force, sar2_en_pad_force);
-        
+        impl_adc_setup!(
+            config,
+            sar2_bit_width,
+            sar_read_ctrl2,
+            sar2_sample_bit,
+            sar_atten2,
+            sar2_atten,
+            sar2_dig_force,
+            sar_meas_start2,
+            meas2_start_force,
+            sar2_en_pad_force
+        );
+
         let adc = ADC {
             adc: PhantomData,
             active_channel: spin::Mutex::new(None),
@@ -142,9 +188,9 @@ macro_rules! impl_adc_interface {
                     sensors.$start_reg.modify(|_, w| {
                         unsafe { w.$en_pad().bits(1 << PIN::channel() as u8) }
                     });
-            
+
                     sensors.$start_reg.modify(|_,w| w.$start().clear_bit());
-                    sensors.$start_reg.modify(|_,w| w.$start().set_bit());    
+                    sensors.$start_reg.modify(|_,w| w.$start().set_bit());
                 }
 
                 // Wait for ongoing conversion to complete
@@ -162,9 +208,9 @@ macro_rules! impl_adc_interface {
                 // Get converted value
                 let converted_value = sensors.$start_reg.read().$data().bits() as u16;
 
-                // Mark that no conversions are currently in progress 
+                // Mark that no conversions are currently in progress
                 *current_conversion = None;
-                
+
                 Ok(converted_value.into())
             }
         }
@@ -173,7 +219,7 @@ macro_rules! impl_adc_interface {
         $(
             impl Channel<$adc> for $pin<Analog> {
                 type ID = u8;
-            
+
                 fn channel() -> u8 { $channel }
             }
         )+

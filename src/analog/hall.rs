@@ -1,21 +1,26 @@
-
-use embedded_hal::adc::OneShot;
-use crate::analog::ADC1;
 use crate::analog::adc::ADC;
-use crate::pac::{RTCIO};
-use crate::gpio::{Gpio36, Gpio39, Analog};
+use crate::analog::ADC1;
+use crate::gpio::{Analog, Gpio36, Gpio39};
+use crate::pac::RTCIO;
+use embedded_hal::adc::OneShot;
 
 impl ADC<ADC1> {
-    pub fn read_hall_sensor(&mut self, vp_pin: &mut Gpio36<Analog>,
-        vn_pin: &mut Gpio39<Analog>) -> i32
-    {
+    pub fn read_hall_sensor(
+        &mut self,
+        vp_pin: &mut Gpio36<Analog>,
+        vn_pin: &mut Gpio39<Analog>,
+    ) -> i32 {
         let rtcio = unsafe { &*RTCIO::ptr() };
 
-        rtcio.rtc_io_hall_sens.modify(|_,w| w.rtc_io_hall_phase().clear_bit());
+        rtcio
+            .rtc_io_hall_sens
+            .modify(|_, w| w.rtc_io_hall_phase().clear_bit());
         let vp1: u16 = block!(self.read(vp_pin)).unwrap();
         let vn1: u16 = block!(self.read(vn_pin)).unwrap();
 
-        rtcio.rtc_io_hall_sens.modify(|_,w| w.rtc_io_hall_phase().set_bit());
+        rtcio
+            .rtc_io_hall_sens
+            .modify(|_, w| w.rtc_io_hall_phase().set_bit());
         let vp2: u16 = block!(self.read(vp_pin)).unwrap();
         let vn2: u16 = block!(self.read(vn_pin)).unwrap();
 
