@@ -40,28 +40,37 @@ fn main() -> ! {
     // we will do it manually on startup
     disable_timg_wdts(&mut timg0, &mut timg1);
 
-    let gpios = dp.GPIO.split();
-    let mut pin36 = gpios.gpio36.into_analog();
-
     let mut clkcntrl = esp32_hal::clock_control::ClockControl::new(dp.RTCCNTL, dp.APB_CTRL);
     clkcntrl.watchdog().disable();
 
     let serial = Serial::uart0(dp.UART0, (NoTx, NoRx), esp32_hal::serial::config::Config::default(), &mut clkcntrl).unwrap();
-    let baudrate = serial.get_baudrate();
-
-    let mut adc_config = esp32_hal::analog::config::Adc1Config::new();
-    adc_config.enable_pin(&pin36, esp32_hal::analog::config::Attenuation::Attenuation0dB);
-
-    let analog = dp.SENS.split();
-    let mut adc1 = ADC::adc1(analog.adc1, adc_config).unwrap();
-
     let (mut tx, _rx) = serial.split();
-    writeln!(tx, "baudrate {:?}", baudrate).unwrap();
-    delay(BLINK_HZ);
+
+    /* Set ADC pins into analog mode */
+    let gpios = dp.GPIO.split();
+    let mut pin36 = gpios.gpio36.into_analog();
+    let mut pin25 = gpios.gpio25.into_analog();
+
+    /* Prepare ADC configs by enabling pins, which will be used */
+    let mut adc1_config = esp32_hal::analog::config::Adc1Config::new();
+    adc1_config.enable_pin(&pin36, esp32_hal::analog::config::Attenuation::Attenuation11dB);
+
+    let mut adc2_config = esp32_hal::analog::config::Adc2Config::new();
+    adc2_config.enable_pin(&pin25, esp32_hal::analog::config::Attenuation::Attenuation11dB);
+
+    /* Create ADC instances */
+    let analog = dp.SENS.split();
+    let mut adc1 = ADC::adc1(analog.adc1, adc1_config).unwrap();
+    let mut adc2 = ADC::adc2(analog.adc2, adc2_config).unwrap();
 
     loop {
+        /* Read ADC values */
+
         let pin36_value: u16 = block!(adc1.read(&mut pin36)).unwrap();
         writeln!(tx, "ADC1 pin 36 raw value: {:?}", pin36_value).unwrap();
+
+        let pin25_value: u16 = block!(adc2.read(&mut pin25)).unwrap();
+        writeln!(tx, "ADC2 pin 25 raw value: {:?}", pin25_value).unwrap();
 
         delay(BLINK_HZ);
     }

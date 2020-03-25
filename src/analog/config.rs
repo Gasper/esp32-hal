@@ -1,5 +1,5 @@
 use embedded_hal::adc::Channel;
-use crate::analog::ADC1;
+use crate::analog::{ADC1, ADC2};
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum Resolution {
@@ -54,7 +54,7 @@ impl Adc2Config {
         }
     }
 
-    pub fn enable_pin<PIN: Channel<ADC1, ID=u8>>(&mut self, _pin: &PIN, attenuation: Attenuation) {
+    pub fn enable_pin<PIN: Channel<ADC2, ID=u8>>(&mut self, _pin: &PIN, attenuation: Attenuation) {
         self.attenuations[PIN::channel() as usize] = Some(attenuation);
     }
 }
