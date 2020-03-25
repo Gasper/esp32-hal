@@ -30,13 +30,15 @@ fn main() -> ! {
     // we will do it manually on startup
     disable_timg_wdts(&mut timg0, &mut timg1);
 
+    let mut clkcntrl = esp32_hal::clock_control::ClockControl::new(dp.RTCCNTL, dp.APB_CTRL);
+    clkcntrl.watchdog().disable();
+
+    /* Set DAC pins to analog mode. The pins are specified by hardware and cannot be changed */
     let gpios = dp.GPIO.split();
     let pin25 = gpios.gpio25.into_analog();
     let pin26 = gpios.gpio26.into_analog();
 
-    let mut clkcntrl = esp32_hal::clock_control::ClockControl::new(dp.RTCCNTL, dp.APB_CTRL);
-    clkcntrl.watchdog().disable();
-
+    /* Create DAC instances */
     let analog = dp.SENS.split();
     let mut dac1 = DAC::dac1(analog.dac1, pin25).unwrap();
     let mut dac2 = DAC::dac2(analog.dac2, pin26).unwrap();
@@ -44,6 +46,7 @@ fn main() -> ! {
     let mut voltage_dac1: u8 = 0;
     let mut voltage_dac2: u8 = 255;
     loop {
+        /* Change voltage on the pins using write function */
         voltage_dac1 = voltage_dac1.wrapping_add(1);
         dac1.write(voltage_dac1);
 

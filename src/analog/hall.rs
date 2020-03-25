@@ -1,9 +1,9 @@
 
 use embedded_hal::adc::OneShot;
 use crate::analog::ADC1;
-use crate::analog::adc::*;
+use crate::analog::adc::ADC;
 use crate::pac::{RTCIO};
-use crate::gpio::*;
+use crate::gpio::{Gpio36, Gpio39, Analog};
 
 impl ADC<ADC1> {
     pub fn read_hall_sensor(&mut self, vp_pin: &mut Gpio36<Analog>,
