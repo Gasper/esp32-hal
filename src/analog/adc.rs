@@ -8,184 +8,168 @@ use crate::gpio::*;
 use crate::analog::config;
 use crate::analog::{ADC1, ADC2};
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
-pub enum AdcError {
-    UnconfiguredChannel,
-}
-
 pub struct ADC<ADC> {
     adc: PhantomData<ADC>,
     active_channel: spin::Mutex<Option<u8>>,
 }
 
-impl ADC<ADC1> {
+macro_rules! impl_adc_setup {
+    ($config:expr, $bit_width:ident, $read_reg:ident, $sample_bit:ident, $atten_reg: ident,
+        $atten_field:ident, $dig_force:ident, $meas_start_reg:ident,
+        $start_force_field:ident, $en_pad_force:ident) => {
 
-    pub fn adc1(_adc_instance: ADC1, config: config::Adc1Config) -> Result<Self, ()> {
-        let adc = ADC {
-                adc: PhantomData,
-                active_channel: spin::Mutex::new(None),
-            }
-            .set_resolution(config.resolution)
-            .set_attenuation(config.attenuations)
-            .set_controller()
-            .set_power()
-            .set_hall(config.hall_sensor)
-            .set_amp();
-
-        Ok(adc)
-    }
-
-    pub fn set_resolution(self, resolution: config::Resolution) -> Self {
         let sensors = unsafe { &*SENS::ptr() };
-        
-        sensors.sar_start_force.modify(|_,w|
-            unsafe { w.sar1_bit_width().bits(resolution as u8) }
-        );
 
-        sensors.sar_read_ctrl.modify(|_,w|
-            unsafe { w.sar1_sample_bit().bits(resolution as u8) }
-        );
+        /* Set reading and sampling resolution */
+        let resolution: u8 = $config.resolution as u8;
 
-        self
-    }
+        sensors.sar_start_force.modify(|_,w| unsafe { w.$bit_width().bits(resolution) });
+        sensors.$read_reg.modify(|_,w| unsafe { w.$sample_bit().bits(resolution) });
 
-    pub fn set_attenuation(self, attenuations: [Option<config::Attenuation>; 10]) -> Self {
-        let sensors = unsafe { &*SENS::ptr() };
-        
+        /* Set attenuation for pins */
+        let attenuations = $config.attenuations;
+
         for channel in 0..attenuations.len() {
             if let Some(attenuation) = attenuations[channel] {
-                sensors.sar_atten1.modify(|r, w| {
+                sensors.$atten_reg.modify(|r, w| {
                     let new_value = (r.bits() & !(0b11 << (channel * 2))) 
                         | (((attenuation as u8 & 0b11) as u32) << (channel * 2));
         
-                    unsafe { w.sar1_atten().bits(new_value) }
+                    unsafe { w.$atten_field().bits(new_value) }
                 });
             }
-        }
+        };
 
-        self
-    }
-
-    pub fn set_controller(self) -> Self {
-        let sensors = unsafe { &*SENS::ptr() };
-
-        // Set controller to RTC
-        sensors.sar_read_ctrl.modify(|_,w| w.sar1_dig_force().clear_bit());
-        sensors.sar_meas_start1.modify(|_,w| w.meas1_start_force().set_bit());
-        sensors.sar_meas_start1.modify(|_,w| w.sar1_en_pad_force().set_bit());
+        /* Set controller to RTC */
+        sensors.$read_reg.modify(|_,w| w.$dig_force().clear_bit());
+        sensors.$meas_start_reg.modify(|_,w| w.$start_force_field().set_bit());
+        sensors.$meas_start_reg.modify(|_,w| w.$en_pad_force().set_bit());
         sensors.sar_touch_ctrl1.modify(|_,w| w.xpd_hall_force().set_bit());
         sensors.sar_touch_ctrl1.modify(|_,w| w.hall_phase_force().set_bit());
 
-        self
-    }
+        /* Set power to SW power on */
+        sensors.sar_meas_wait2.modify(|_,w| unsafe { w.force_xpd_sar().bits(0b11) });
 
-    pub fn set_power(self) -> Self {
-        let sensors = unsafe { &*SENS::ptr() };
-
-        // Set power to SW power on
-        sensors.sar_meas_wait2.modify(|_,w| {
-            unsafe { w.force_xpd_sar().bits(0b11) }
-        });
-
-        self
-    }
-
-    pub fn set_hall(self, use_hall_sensor: bool) -> Self {
-        let rtcio = unsafe { &*RTCIO::ptr() };
-
-        if use_hall_sensor {
-            rtcio.rtc_io_hall_sens.modify(|_,w| w.rtc_io_xpd_hall().set_bit());
-        }
-        else {
-            rtcio.rtc_io_hall_sens.modify(|_,w| w.rtc_io_xpd_hall().clear_bit());
-        }
-
-        self
-    }
-
-    pub fn set_amp(self) -> Self {
-        let sensors = unsafe { &*SENS::ptr() };
-
-        // AMP disable - undocumented
-        sensors.sar_meas_wait2.modify(|_,w| {
-            unsafe { w.force_xpd_amp().bits(0b10) }
-        });
+        /* disable AMP */
+        sensors.sar_meas_wait2.modify(|_,w| unsafe { w.force_xpd_amp().bits(0b10) });
         sensors.sar_meas_ctrl.modify(|_,w| unsafe { w.amp_rst_fb_fsm().bits(0) });
         sensors.sar_meas_ctrl.modify(|_,w| unsafe { w.amp_short_ref_fsm().bits(0) });
         sensors.sar_meas_ctrl.modify(|_,w| unsafe { w.amp_short_ref_gnd_fsm().bits(0) });
         sensors.sar_meas_wait1.modify(|_,w| unsafe { w.sar_amp_wait1().bits(1) });
         sensors.sar_meas_wait1.modify(|_,w| unsafe { w.sar_amp_wait2().bits(1) });
         sensors.sar_meas_wait2.modify(|_,w| unsafe { w.sar_amp_wait3().bits(1) });
-
-        self
-    }
+    };
 }
 
-impl<WORD, PIN> OneShot<ADC1, WORD, PIN> for ADC<ADC1>
-where
-   WORD: From<u16>,
-   PIN: Channel<ADC1, ID=u8>,
-{
-    type Error = AdcError;
+impl ADC<ADC1> {
+    pub fn adc1(_adc_instance: ADC1, config: config::Adc1Config) -> Result<Self, ()> {
+        
+        impl_adc_setup! (config, sar1_bit_width, sar_read_ctrl, sar1_sample_bit, sar_atten1,
+            sar1_atten, sar1_dig_force, sar_meas_start1,
+            meas1_start_force, sar1_en_pad_force);
+        
+        /* Connect or disconnect hall sensor */
+        let rtcio = unsafe { &*RTCIO::ptr() };
 
-    fn read(&mut self, _pin: &mut PIN) -> nb::Result<WORD, Self::Error> {
-        let sensors = unsafe { &*SENS::ptr() };
-
-        // TODO: reject channels which are not configured
-
-        let active_lock = self.active_channel.try_lock();
-        if active_lock.is_none() {
-            // Some other thread is calling this function - wait for them to finish
-            return Err(nb::Error::WouldBlock);
-        }
-
-        let mut current_conversion = active_lock.unwrap();
-        if let Some(active_channel) = *current_conversion {
-            // There is conversion in progress:
-            // - if it's for a different channel try again later
-            // - if it's for the given channel, go ahaid and check progress
-            if active_channel != PIN::channel() {
-                return Err(nb::Error::WouldBlock);
-            }
+        if config.hall_sensor {
+            rtcio.rtc_io_hall_sens.modify(|_,w| w.rtc_io_xpd_hall().set_bit());
         }
         else {
-            // If no conversions are in progress, start a new one for given channel
-            *current_conversion = Some(PIN::channel());
-
-            sensors.sar_meas_start1.modify(|_, w| {
-                unsafe { w.sar1_en_pad().bits(1 << PIN::channel() as u8) }
-            });
-    
-            sensors.sar_meas_start1.modify(|_,w| w.meas1_start_sar().clear_bit());
-            sensors.sar_meas_start1.modify(|_,w| w.meas1_start_sar().set_bit());    
+            rtcio.rtc_io_hall_sens.modify(|_,w| w.rtc_io_xpd_hall().clear_bit());
         }
 
-        // Wait for ongoing conversion to complete
-        /*let adc_status = sensors.sar_slave_addr1.read().meas_status().bits() as u8;
-        if adc_status != 0 {
-            return Err(nb::Error::WouldBlock);
-        }*/
+        let adc = ADC {
+            adc: PhantomData,
+            active_channel: spin::Mutex::new(None),
+        };
 
-        // Wait for ADC to finish conversion
-        let conversion_finished = sensors.sar_meas_start1.read().meas1_done_sar().bit_is_set();
-        if !conversion_finished {
-            return Err(nb::Error::WouldBlock);
-        }
-
-        // Get converted value
-        let converted_value = sensors.sar_meas_start1.read().meas1_data_sar().bits() as u16;
-
-        // Mark that no conversions are currently in progress 
-        *current_conversion = None;
-        
-        Ok(converted_value.into())
+        Ok(adc)
     }
 }
 
-macro_rules! impl_adc {
-    ($adc:ident: [
+impl ADC<ADC2> {
+    pub fn adc2(_adc_instance: ADC2, config: config::Adc2Config) -> Result<Self, ()> {
+        
+        impl_adc_setup! (config, sar2_bit_width, sar_read_ctrl2, sar2_sample_bit, sar_atten2,
+            sar2_atten, sar2_dig_force, sar_meas_start2,
+            meas2_start_force, sar2_en_pad_force);
+        
+        let adc = ADC {
+            adc: PhantomData,
+            active_channel: spin::Mutex::new(None),
+        };
+
+        Ok(adc)
+    }
+}
+
+macro_rules! impl_adc_interface {
+    ($adc:ident ($start_reg:ident, $en_pad:ident, $start:ident, $done:ident, $data:ident): [
         $( ($pin:ident, $channel:expr) ,)+
     ]) => {
+
+        impl<WORD, PIN> OneShot<$adc, WORD, PIN> for ADC<$adc>
+        where
+        WORD: From<u16>,
+        PIN: Channel<$adc, ID=u8>,
+        {
+            type Error = ();
+
+            fn read(&mut self, _pin: &mut PIN) -> nb::Result<WORD, Self::Error> {
+                let sensors = unsafe { &*SENS::ptr() };
+
+                // TODO: reject channels which are not configured
+
+                let active_lock = self.active_channel.try_lock();
+                if active_lock.is_none() {
+                    // Some other thread is calling this function - wait for them to finish
+                    return Err(nb::Error::WouldBlock);
+                }
+
+                let mut current_conversion = active_lock.unwrap();
+                if let Some(active_channel) = *current_conversion {
+                    // There is conversion in progress:
+                    // - if it's for a different channel try again later
+                    // - if it's for the given channel, go ahaid and check progress
+                    if active_channel != PIN::channel() {
+                        return Err(nb::Error::WouldBlock);
+                    }
+                }
+                else {
+                    // If no conversions are in progress, start a new one for given channel
+                    *current_conversion = Some(PIN::channel());
+
+                    sensors.$start_reg.modify(|_, w| {
+                        unsafe { w.$en_pad().bits(1 << PIN::channel() as u8) }
+                    });
+            
+                    sensors.$start_reg.modify(|_,w| w.$start().clear_bit());
+                    sensors.$start_reg.modify(|_,w| w.$start().set_bit());    
+                }
+
+                // Wait for ongoing conversion to complete
+                /*let adc_status = sensors.sar_slave_addr1.read().meas_status().bits() as u8;
+                if adc_status != 0 {
+                    return Err(nb::Error::WouldBlock);
+                }*/
+
+                // Wait for ADC to finish conversion
+                let conversion_finished = sensors.$start_reg.read().$done().bit_is_set();
+                if !conversion_finished {
+                    return Err(nb::Error::WouldBlock);
+                }
+
+                // Get converted value
+                let converted_value = sensors.$start_reg.read().$data().bits() as u16;
+
+                // Mark that no conversions are currently in progress 
+                *current_conversion = None;
+                
+                Ok(converted_value.into())
+            }
+        }
+
+
         $(
             impl Channel<$adc> for $pin<Analog> {
                 type ID = u8;
@@ -196,8 +180,8 @@ macro_rules! impl_adc {
     }
 }
 
-impl_adc! {
-    ADC1: [
+impl_adc_interface! {
+    ADC1 (sar_meas_start1, sar1_en_pad, meas1_start_sar, meas1_done_sar, meas1_data_sar): [
         (Gpio36, 0), // Alt. name: SENSOR_VP
         (Gpio37, 1), // Alt. name: SENSOR_CAPP
         (Gpio38, 2), // Alt. name: SENSOR_CAPN
@@ -209,8 +193,8 @@ impl_adc! {
     ]
 }
 
-impl_adc! {
-    ADC2: [
+impl_adc_interface! {
+    ADC2 (sar_meas_start2, sar2_en_pad, meas2_start_sar, meas2_done_sar, meas2_data_sar): [
         (Gpio4, 0),
         (Gpio0, 1),
         (Gpio2, 2),
