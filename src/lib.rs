@@ -8,3 +8,4 @@ pub mod gpio;
 pub mod prelude;
 pub mod serial;
 pub mod units;
+pub mod efuse;
