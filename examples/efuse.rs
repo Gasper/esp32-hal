@@ -10,10 +10,10 @@ use esp32;
 use esp32_hal::gpio::GpioExt;
 use esp32_hal::hal::digital::v2::OutputPin;
 
-use esp32_hal::hal::serial::Read as _;
 use esp32_hal::efuse::Efuse;
-use esp32_hal::units::Hertz;
+use esp32_hal::hal::serial::Read as _;
 use esp32_hal::serial::{config::Config, NoRx, NoTx, Serial};
+use esp32_hal::units::Hertz;
 
 use embedded_hal::watchdog::*;
 
@@ -50,15 +50,14 @@ fn main() -> ! {
     let (mut tx, mut _rx) = serial.split();
     writeln!(tx, "baudrate {:?}", baudrate).unwrap();
 
-    let mac_addr: [u8; 6] = Efuse::get_mac_address();
+    let mac_address = Efuse::get_mac_address();
     let vref: Option<i32> = Efuse::get_adc_vref();
     let adc1_tp_cal: Option<(i32, i32)> = Efuse::get_adc1_two_point_cal();
     let adc2_tp_cal: Option<(i32, i32)> = Efuse::get_adc1_two_point_cal();
     let core_count = Efuse::get_core_count();
     let bt_enabled = Efuse::is_bluetooth_enabled();
-    let chip_version = Efuse::get_chip_version();
+    let chip_type = Efuse::get_chip_type();
 
-    writeln!(tx, "[0]: {}", mac_addr[0]).unwrap();
     /*writeln!(tx, "[1]: {}", mac_addr[1]).unwrap();
     writeln!(tx, "[2]: {}", mac_addr[2]).unwrap();
     writeln!(tx, "[3]: {}", mac_addr[3]).unwrap();
@@ -66,9 +65,20 @@ fn main() -> ! {
     writeln!(tx, "[5]: {}", mac_addr[5]).unwrap();*/
 
     loop {
-        writeln!(tx, "MAC: {:X?}", mac_addr).unwrap();
+        writeln!(tx, "Some data about the chip is here").unwrap();
+        writeln!(
+            tx,
+            "MAC {:#X}:{:#X}:{:#X}:{:#X}:{:#X}:{:#X}",
+            mac_address[0],
+            mac_address[1],
+            mac_address[2],
+            mac_address[3],
+            mac_address[4],
+            mac_address[5]
+        )
+        .unwrap();
         writeln!(tx, "Bluetooth enabled: {}", bt_enabled).unwrap();
-        writeln!(tx, "Chip version: {:?}", chip_version).unwrap();
+        writeln!(tx, "Chip version: {:?}", chip_type).unwrap();
         writeln!(tx, "Number of CPU cores: {}", core_count).unwrap();
 
         if let Some(reference_voltage) = vref {
@@ -78,11 +88,10 @@ fn main() -> ! {
         if let Some((adc1_low, adc1_high)) = adc1_tp_cal {
             writeln!(tx, "ADC1 low: {} ADC1 high: {}", adc1_low, adc1_high).unwrap();
         }
-        
+
         if let Some((adc2_low, adc2_high)) = adc2_tp_cal {
             writeln!(tx, "ADC2 low: {} ADC2 high: {}", adc2_low, adc2_high).unwrap();
-        }
-        else {
+        } else {
             writeln!(tx, "No two-points calibrations").unwrap();
         }
 
