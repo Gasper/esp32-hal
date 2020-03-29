@@ -10,6 +10,7 @@ use crate::pac::{RTCIO, SENS};
 
 pub struct ADC<ADC> {
     adc: PhantomData<ADC>,
+    attenuations: [Option<config::Attenuation>; 10],
     active_channel: spin::Mutex<Option<u8>>,
 }
 
@@ -118,6 +119,7 @@ impl ADC<ADC1> {
 
         let adc = ADC {
             adc: PhantomData,
+            attenuations: config.attenuations,
             active_channel: spin::Mutex::new(None),
         };
 
@@ -142,6 +144,7 @@ impl ADC<ADC2> {
 
         let adc = ADC {
             adc: PhantomData,
+            attenuations: config.attenuations,
             active_channel: spin::Mutex::new(None),
         };
 
@@ -164,7 +167,9 @@ macro_rules! impl_adc_interface {
             fn read(&mut self, _pin: &mut PIN) -> nb::Result<WORD, Self::Error> {
                 let sensors = unsafe { &*SENS::ptr() };
 
-                // TODO: reject channels which are not configured
+                if self.attenuations[PIN::channel() as usize] == None {
+                    panic!("Channel {} is not configured reading!", PIN::channel());
+                }
 
                 let active_lock = self.active_channel.try_lock();
                 if active_lock.is_none() {
@@ -192,12 +197,6 @@ macro_rules! impl_adc_interface {
                     sensors.$start_reg.modify(|_,w| w.$start().clear_bit());
                     sensors.$start_reg.modify(|_,w| w.$start().set_bit());
                 }
-
-                // Wait for ongoing conversion to complete
-                /*let adc_status = sensors.sar_slave_addr1.read().meas_status().bits() as u8;
-                if adc_status != 0 {
-                    return Err(nb::Error::WouldBlock);
-                }*/
 
                 // Wait for ADC to finish conversion
                 let conversion_finished = sensors.$start_reg.read().$done().bit_is_set();
